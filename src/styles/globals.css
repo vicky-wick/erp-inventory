@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* EVOLV design tokens — obsidian & gold */
+  --evolv-bg: #f6f2ea;
+  --evolv-bg-2: #ece6d9;
+  --evolv-surface: #fffdf8;
+  --evolv-text: #1c1a15;
+  --evolv-text-muted: #7d786c;
+  --evolv-accent: #a37e35;
+  --evolv-accent-light: #f0e6d2;
+  --evolv-border: #e6dfd0;
+  --evolv-success: #3d7a5f;
+  --evolv-warning: #b07c33;
+  --evolv-danger: #b5534a;
+  --evolv-dark: #161511;
+}
+
+/* Brushed-gold gradient surfaces and text */
+.gold-surface {
+  background: linear-gradient(135deg, #d8b565 0%, #b78f42 52%, #93712c 100%);
+  color: #fffdf8;
+}
+.text-gold {
+  background: linear-gradient(115deg, #d8b565 0%, #a37e35 55%, #8a6726 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Serif display defaults */
+h1, h2, h3 {
+  font-weight: 600;
+}
+.eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Tabular numerals for quantities and money */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Safe area for mobile bottom nav */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.25rem);
+}
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.25rem);
+}
+
+h1, h2, h3, h4 {
+  @apply font-display;
+  letter-spacing: -0.01em;
+}
+
+/* Scrollbars: thin, unobtrusive */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--evolv-border);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

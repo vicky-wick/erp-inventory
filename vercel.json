@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "rewrites": [
+    { "source": "/((?!api/|assets/|manifest\\.webmanifest|sw\\.js|favicon\\.svg).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/[[...path]].ts": {
+      "maxDuration": 15
+    }
+  }
+}

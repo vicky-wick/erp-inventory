@@ -1,0 +1,12 @@
+{
+  "name": "EVOLV",
+  "short_name": "EVOLV",
+  "description": "One platform. Your business. Simple retail inventory, sales and stock management.",
+  "start_url": "/app/dashboard",
+  "display": "standalone",
+  "background_color": "#F7F5F0",
+  "theme_color": "#24231F",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

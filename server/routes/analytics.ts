@@ -1,6 +1,6 @@
-import { route, intOrNull, ApiRequest, unauthorized } from "../router";
-import { withTx, scopedQuery } from "../db";
-import { requireMembership } from "../access";
+import { route, intOrNull, ApiRequest, unauthorized } from "../router.js";
+import { withTx, scopedQuery } from "../db.js";
+import { requireMembership } from "../access.js";
 
 export default [
   // ---------------- dashboard stats ----------------

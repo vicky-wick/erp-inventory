@@ -9,7 +9,7 @@ One platform. Your business. A mobile-first retail management web app for invent
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query, React Router 7, Framer Motion, Recharts |
 | Backend | Node (`pg`), transaction-scoped RLS context, scrypt auth + opaque bearer sessions |
 | Database | Neon PostgreSQL (RLS policies on every table, integer paise for money) |
-| Deploy target | Vercel (serverless entry `api/[[...path]].ts`) |
+| Deploy target | Vercel (serverless entry `api/handler.ts`) |
 
 ## Quick start
 
@@ -39,7 +39,7 @@ Open http://localhost:5173 — register an account and follow the onboarding wiz
 - **Money is integer paise** everywhere — no floating-point currency math.
 
 ### Backend (`server/`)
-- Route table (`router.ts`) with typed validators; runs on Node http locally (`dev.ts`) and Vercel serverless (`api/[[...path]].ts`).
+- Route table (`router.ts`) with typed validators; runs on Node http locally (`dev.ts`) and Vercel serverless (`api/handler.ts`).
 - Auth: scrypt password hashing, opaque tokens stored hashed (SHA-256) in `sessions`; sliding 30-day expiry.
 - Access control: `requireMembership` / `requireAdmin` on every workspace route, enforced *and* backed by RLS.
 
@@ -64,8 +64,15 @@ Open http://localhost:5173 — register an account and follow the onboarding wiz
 
 1. Import the repo into Vercel.
 2. Set `DATABASE_URL` (Neon **pooled** connection string) and `NODE_ENV=production` in project env vars.
-3. Framework preset: Vite. The `api/[[...path]].ts` entry serves all `/api/*` routes automatically (`vercel.json` includes the rewrite).
+3. Framework preset: Vite. `vercel.json` rewrites every `/api/*` request to `api/handler.ts` and serves the SPA for everything else.
 4. Run `npm run db:migrate` once against the production database from your machine.
+
+> **Deployment gotchas (learned the hard way).**
+> - Node picks the module format from the nearest `package.json`; Vercel's builder emits ESM. Never add an `api/package.json` that declares `commonjs` — the runtime then fails with `SyntaxError: Unexpected token 'export'` → `500 FUNCTION_INVOCATION_FAILED`.
+> - ESM needs explicit extensions: relative imports in `server/**` and `api/**` end in `.js`.
+> - A dynamic filename only matches a single path segment on plain Vercel Functions, so all `/api/*` paths (including nested ones like `/api/auth/me`) go through the rewrite to `api/handler.ts`.
+>
+> After deploying, `GET /api/health` reports `database_configured`, the deployed commit, and the function region.
 
 ## Notes
 

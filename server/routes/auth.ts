@@ -1,10 +1,10 @@
-import { route, body, isRecord, str, strOrNull, emailOrNull, badRequest, unauthorized, ApiRequest } from "../router";
-import { withTx, scopedQuery, pgError } from "../db";
+import { route, body, isRecord, str, strOrNull, emailOrNull, badRequest, unauthorized, ApiRequest } from "../router.js";
+import { withTx, scopedQuery, pgError } from "../db.js";
 import {
   hashPassword, verifyPassword, createSession, destroySession,
   createPasswordReset, consumePasswordReset,
-} from "../auth";
-import { pool } from "../db";
+} from "../auth.js";
+import { pool } from "../db.js";
 
 const PASSWORD_MIN = 8;
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

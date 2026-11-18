@@ -1,6 +1,6 @@
 import { randomBytes, scrypt as _scrypt, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 const scrypt = promisify(_scrypt) as (
   password: string,

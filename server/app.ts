@@ -1,11 +1,11 @@
-import { ApiRequest, ApiError, matchRouteList, notFound, route } from "./router";
-import { resolveToken } from "./auth";
-import authRoutes from "./routes/auth";
-import workspaceRoutes from "./routes/workspaces";
-import inventoryRoutes from "./routes/inventory";
-import transactionRoutes from "./routes/transactions";
-import analyticsRoutes from "./routes/analytics";
-import type { Route } from "./router";
+import { ApiRequest, ApiError, matchRouteList, notFound, route } from "./router.js";
+import { resolveToken } from "./auth.js";
+import authRoutes from "./routes/auth.js";
+import workspaceRoutes from "./routes/workspaces.js";
+import inventoryRoutes from "./routes/inventory.js";
+import transactionRoutes from "./routes/transactions.js";
+import analyticsRoutes from "./routes/analytics.js";
+import type { Route } from "./router.js";
 
 const routes: Route[] = [
   // Deployment diagnostic: tells you instantly whether the API function is
@@ -13,6 +13,8 @@ const routes: Route[] = [
   route("GET", "/health", async () => ({
     status: "ok",
     database_configured: Boolean(process.env.DATABASE_URL),
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+    region: process.env.VERCEL_REGION ?? "local",
     node: process.version,
   })),
   ...authRoutes,
@@ -36,6 +38,19 @@ type NodeRes = {
 };
 
 async function readBody(req: NodeReq): Promise<unknown> {
+  // Vercel's Node runtime pre-parses JSON bodies and consumes the stream.
+  // Reading the stream there would yield nothing, so use the parsed body.
+  const pre = (req as { body?: unknown }).body;
+  if (pre !== undefined) {
+    if (typeof pre !== "string") return pre;
+    if (!pre) return null;
+    try {
+      return JSON.parse(pre);
+    } catch {
+      return null;
+    }
+  }
+
   const chunks: Buffer[] = [];
   for await (const chunk of req as unknown as AsyncIterable<Buffer | string>) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);

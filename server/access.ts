@@ -1,5 +1,5 @@
-import { ApiRequest, unauthorized, forbidden, notFound } from "./router";
-import { scopedQuery } from "./db";
+import { ApiRequest, unauthorized, forbidden, notFound } from "./router.js";
+import { scopedQuery } from "./db.js";
 
 export type Membership = { workspaceId: string; role: "owner" | "admin" | "staff" };
 

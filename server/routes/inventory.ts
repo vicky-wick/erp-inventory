@@ -1,9 +1,9 @@
 import {
   route, body, isRecord, str, strOrNull, intOrNull, uuidOrNull, bool,
   ApiRequest, unauthorized, notFound, badRequest, conflict,
-} from "../router";
-import { withTx, scopedQuery, pgError } from "../db";
-import { requireMembership } from "../access";
+} from "../router.js";
+import { withTx, scopedQuery, pgError } from "../db.js";
+import { requireMembership } from "../access.js";
 
 const DUPLICATE_SKU = "23505";
 

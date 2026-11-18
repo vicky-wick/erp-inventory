@@ -1,6 +1,6 @@
 // Local dev API server (proxied by Vite at /api -> localhost:8787)
 import { createServer } from "node:http";
-import { handleApi } from "./app";
+import { handleApi } from "./app.js";
 
 const port = Number(process.env.PORT ?? 8787);
 

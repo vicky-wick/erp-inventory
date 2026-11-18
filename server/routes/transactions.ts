@@ -1,9 +1,9 @@
 import {
   route, body, isRecord, str, strOrNull, intOrNull, uuidOrNull,
   ApiRequest, unauthorized, notFound, badRequest, conflict,
-} from "../router";
-import { withTx, scopedQuery, pgError } from "../db";
-import { requireMembership, ownedRow } from "../access";
+} from "../router.js";
+import { withTx, scopedQuery, pgError } from "../db.js";
+import { requireMembership, ownedRow } from "../access.js";
 
 // ------------------------------------------------------------------ SALES
 

@@ -49,15 +49,16 @@ export async function api<T>(
   try {
     envelope = (await res.json()) as Envelope<T>;
   } catch {
-    // Response arrived but wasn't JSON — e.g. a proxy error page while the
-    // API is restarting, or an HTML fallback route.
-    throw new ApiError(
-      res.status || 502,
-      "network",
+    // Response arrived but wasn't JSON — e.g. a proxy error page, a Vercel
+    // routing 404, or an HTML fallback route.
+    console.error("[api] non-JSON response", res.status, res.headers.get("content-type"), path);
+    const msg =
       res.status >= 500
         ? "The server is starting up. Please try again in a few seconds."
-        : "Unexpected server response. Please refresh the page and try again."
-    );
+        : res.status === 404
+          ? "The API is unreachable (404). The deployment is incomplete — please redeploy."
+          : `Unexpected server response (${res.status}). Please refresh the page and try again.`;
+    throw new ApiError(res.status || 502, "network", msg);
   }
 
   if (!envelope || !envelope.ok) {

@@ -1,9 +1,9 @@
 import {
   route, body, isRecord, str, strOrNull, intOrNull, bool, uuidOrNull,
   ApiRequest, unauthorized, notFound, badRequest, forbidden,
-} from "../router";
-import { withTx, scopedQuery, pgError } from "../db";
-import { requireMembership, requireAdmin } from "../access";
+} from "../router.js";
+import { withTx, scopedQuery, pgError } from "../db.js";
+import { requireMembership, requireAdmin } from "../access.js";
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "LKR", "NPR", "BDT"];
 const BUSINESS_TYPES = ["eyewear","watches","bags","fashion","jewellery","electronics","general","other"];

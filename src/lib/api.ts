@@ -33,17 +33,31 @@ export async function api<T>(
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // fetch itself failed: server unreachable, DNS, CORS, etc.
+    throw new ApiError(0, "network", "Couldn't reach the server. Check your connection.");
+  }
 
   let envelope: Envelope<T> | null = null;
   try {
     envelope = (await res.json()) as Envelope<T>;
   } catch {
-    throw new ApiError(res.status, "network", "Couldn't reach the server. Check your connection.");
+    // Response arrived but wasn't JSON — e.g. a proxy error page while the
+    // API is restarting, or an HTML fallback route.
+    throw new ApiError(
+      res.status || 502,
+      "network",
+      res.status >= 500
+        ? "The server is starting up. Please try again in a few seconds."
+        : "Unexpected server response. Please refresh the page and try again."
+    );
   }
 
   if (!envelope || !envelope.ok) {

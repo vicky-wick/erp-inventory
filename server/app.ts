@@ -1,4 +1,4 @@
-import { ApiRequest, ApiError, matchRouteList, notFound } from "./router";
+import { ApiRequest, ApiError, matchRouteList, notFound, route } from "./router";
 import { resolveToken } from "./auth";
 import authRoutes from "./routes/auth";
 import workspaceRoutes from "./routes/workspaces";
@@ -8,6 +8,13 @@ import analyticsRoutes from "./routes/analytics";
 import type { Route } from "./router";
 
 const routes: Route[] = [
+  // Deployment diagnostic: tells you instantly whether the API function is
+  // live and whether its database configuration is present.
+  route("GET", "/health", async () => ({
+    status: "ok",
+    database_configured: Boolean(process.env.DATABASE_URL),
+    node: process.version,
+  })),
   ...authRoutes,
   ...workspaceRoutes,
   ...inventoryRoutes,
@@ -53,36 +60,47 @@ function send(res: NodeRes, status: number, data: unknown): void {
 }
 
 export async function handleApi(req: NodeReq, res: NodeRes): Promise<void> {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  let path = url.pathname.replace(/^\/api\/?/, "/");
-  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+  // CORS (harmless same-origin, required if the SPA is ever hosted separately)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
   const method = (req.method ?? "GET").toUpperCase();
-
-  const tokenHeader = req.headers.authorization;
-  const token = typeof tokenHeader === "string" && tokenHeader.startsWith("Bearer ")
-    ? tokenHeader.slice(7)
-    : undefined;
-
-  let userId: string | null = null;
-  let sessionId: string | null = null;
-  const session = await resolveToken(token);
-  if (session) {
-    userId = session.userId;
-    sessionId = session.sessionId;
+  if (method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
   }
 
-  const apiReq: ApiRequest = {
-    method,
-    path,
-    params: {},
-    query: url.searchParams,
-    body: null,
-    token,
-    userId,
-    sessionId,
-  };
-
   try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    let path = url.pathname.replace(/^\/api\/?/, "/");
+    if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+
+    const tokenHeader = req.headers.authorization;
+    const token = typeof tokenHeader === "string" && tokenHeader.startsWith("Bearer ")
+      ? tokenHeader.slice(7)
+      : undefined;
+
+    let userId: string | null = null;
+    let sessionId: string | null = null;
+    const session = await resolveToken(token);
+    if (session) {
+      userId = session.userId;
+      sessionId = session.sessionId;
+    }
+
+    const apiReq: ApiRequest = {
+      method,
+      path,
+      params: {},
+      query: url.searchParams,
+      body: null,
+      token,
+      userId,
+      sessionId,
+    };
+
     if (method !== "GET" && method !== "DELETE") {
       apiReq.body = await readBody(req);
     }
@@ -96,7 +114,10 @@ export async function handleApi(req: NodeReq, res: NodeRes): Promise<void> {
       send(res, err.status, { ok: false, error: { code: err.code, message: err.message } });
     } else {
       console.error("API error:", err);
-      send(res, 500, { ok: false, error: { code: "internal", message: "Something went wrong. Please try again." } });
+      const msg = err instanceof Error && /DATABASE_URL|connection string/i.test(err.message)
+        ? "Server is missing its database configuration (DATABASE_URL)."
+        : "Something went wrong. Please try again.";
+      send(res, 500, { ok: false, error: { code: "internal", message: msg } });
     }
   }
 }

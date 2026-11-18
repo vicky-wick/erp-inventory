@@ -6,19 +6,38 @@ declare global {
   var __evolvPool: Pool | undefined;
 }
 
-export const pool =
-  globalThis.__evolvPool ??
-  new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 15_000,
-    application_name: "evolv-api",
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__evolvPool = pool;
+/**
+ * The pool is created lazily on first use, so a deployment missing its
+ * DATABASE_URL fails with a clear error message on the request path
+ * (surfaced as JSON by handleApi) instead of crashing the module at import.
+ */
+function ensurePool(): Pool {
+  if (!globalThis.__evolvPool) {
+    const cs = process.env.DATABASE_URL;
+    if (!cs) {
+      throw new Error(
+        "DATABASE_URL is not set. Add it in Vercel → Settings → Environment Variables (use the Neon pooled connection string)."
+      );
+    }
+    globalThis.__evolvPool = new Pool({
+      connectionString: cs,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+      application_name: "evolv-api",
+    });
+  }
+  return globalThis.__evolvPool;
 }
+
+/** Proxy so every existing `pool.query(...)` call site resolves the pool lazily. */
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    const real = ensurePool() as unknown as Record<string | symbol, unknown>;
+    const value = real[prop];
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(real) : value;
+  },
+});
 
 export type TxContext = {
   userId?: string;

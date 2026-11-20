@@ -19,6 +19,17 @@ const PAYMENTS = [
   { v: "card", l: "Card" }, { v: "other", l: "Other" },
 ] as const;
 
+// Percent discounts travel to the server as basis points (12.5% -> 1250) and
+// are recomputed against the real subtotal inside the database transaction.
+function parsePercent(input: string): number {
+  const n = parseFloat(input.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function formatPercent(bps: number): string {
+  return (bps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
 export default function SaleNewPage() {
   const { workspace } = useSession();
   const navigate = useNavigate();
@@ -31,6 +42,7 @@ export default function SaleNewPage() {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [discount, setDiscount] = useState("");
+  const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]["v"]>("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -51,8 +63,20 @@ export default function SaleNewPage() {
   });
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const discountPaise = parseMoneyToPaise(discount || "0");
+  const percentEntered = discountMode === "percent" ? parsePercent(discount) : 0;
+  const discountBps = Math.min(10000, Math.round(percentEntered * 100));
+  const discountPaise =
+    discountMode === "percent"
+      ? Math.round((subtotal * discountBps) / 10000)
+      : parseMoneyToPaise(discount || "0");
   const total = Math.max(0, subtotal - discountPaise);
+
+  function chooseDiscountMode(mode: "amount" | "percent") {
+    if (mode === discountMode) return;
+    setDiscountMode(mode);
+    setDiscount("");
+    setError(null);
+  }
 
   function addProduct(p: Product) {
     setLines((ls) => {
@@ -74,7 +98,9 @@ export default function SaleNewPage() {
           quantity: l.qty,
           unit_price: l.unitPrice,
         })),
-        discount: discountPaise,
+        discount: discountMode === "amount" ? discountPaise : 0,
+        discount_type: discountMode,
+        discount_value: discountMode === "amount" ? discountPaise : discountBps,
         payment_method: payment,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
@@ -90,6 +116,7 @@ export default function SaleNewPage() {
     e.preventDefault();
     setError(null);
     if (lines.length === 0) return setError("Add at least one product");
+    if (discountMode === "percent" && percentEntered > 100) return setError("Discount percentage must be between 0 and 100");
     if (discountPaise > subtotal) return setError("Discount cannot be more than the subtotal");
     complete.mutate();
   }
@@ -159,15 +186,53 @@ export default function SaleNewPage() {
           <span className="text-muted-foreground">Subtotal</span>
           <span className="tabular font-medium">{formatMoney(subtotal, currency)}</span>
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Discount</span>
-          <input
-            inputMode="decimal"
-            value={discount}
-            onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ""))}
-            placeholder="0"
-            className="tabular w-24 rounded-md border border-line px-2 py-1 text-right text-sm focus:border-champagne focus:outline-none"
-          />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Discount</span>
+            <div className="flex items-center rounded-full border border-line bg-background-2 p-0.5" role="group" aria-label="Discount mode">
+              <button
+                type="button"
+                onClick={() => chooseDiscountMode("amount")}
+                aria-pressed={discountMode === "amount"}
+                className={cn(
+                  "rounded-full px-3 py-1 text-2xs font-semibold transition-colors",
+                  discountMode === "amount" ? "bg-surface text-foreground shadow-xs" : "text-muted-foreground"
+                )}
+              >
+                {currency === "INR" ? "₹" : currency}
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseDiscountMode("percent")}
+                aria-pressed={discountMode === "percent"}
+                className={cn(
+                  "rounded-full px-3 py-1 text-2xs font-semibold transition-colors",
+                  discountMode === "percent" ? "bg-surface text-foreground shadow-xs" : "text-muted-foreground"
+                )}
+              >
+                %
+              </button>
+            </div>
+          </div>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {discountMode === "amount" ? (currency === "INR" ? "₹" : currency) : "%"}
+            </span>
+            <input
+              inputMode="decimal"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ""))}
+              placeholder="0"
+              aria-label={discountMode === "percent" ? "Discount percentage" : "Discount amount"}
+              className="tabular h-10 w-full rounded-md border border-line bg-background pl-9 pr-3 text-right text-sm focus:border-champagne focus:outline-none"
+            />
+          </div>
+          {discountPaise > 0 && (
+            <p className="tabular text-right text-2xs text-muted-foreground">
+              {discountMode === "percent" && `${formatPercent(discountBps)}% off · `}
+              <span className="text-accent">−{formatMoney(discountPaise, currency)}</span>
+            </p>
+          )}
         </div>
         <div className="flex justify-between border-t border-line pt-2 text-base font-bold">
           <span>Total</span>
@@ -220,7 +285,7 @@ export default function SaleNewPage() {
             loading={complete.isPending}
             disabled={lines.length === 0}
             size="lg"
-            className="min-w-36 flex-1"
+            className="min-w-36 flex-1 rounded-full"
           >
             <Check size={16} /> Complete sale
           </Button>

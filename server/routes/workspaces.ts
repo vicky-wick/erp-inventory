@@ -15,9 +15,15 @@ function currencyOf(v: unknown): string {
   return CURRENCIES.includes(s) ? s : "INR";
 }
 
-function typeOf(v: unknown): string {
-  const s = typeof v === "string" ? v : "";
-  return BUSINESS_TYPES.includes(s) ? s : "other";
+// A shop can sell several things at once (bags + eyewear). Returns a clean,
+// de-duplicated, ordered selection of known sections.
+function typesOf(v: unknown): string[] {
+  const raw = Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item === "string" && BUSINESS_TYPES.includes(item) && !out.includes(item)) out.push(item);
+  }
+  return out;
 }
 
 function validLogoUrl(v: unknown): string | null {
@@ -36,9 +42,11 @@ export default [
       if (!isRecord(v)) return null;
       const name = str(v.name, 80);
       if (!name) return null;
+      const businessTypes = typesOf(v.business_types ?? v.business_type);
       return {
         name,
-        business_type: typeOf(v.business_type),
+        business_type: businessTypes[0] ?? "other",
+        business_types: businessTypes.length ? businessTypes : ["other"],
         logo_url: validLogoUrl(v.logo_url),
         currency: currencyOf(v.currency),
         phone: strOrNull(v.phone, 20),
@@ -50,8 +58,8 @@ export default [
 
     const wsId = await withTx({ system: true }, async (tx) => {
       try {
-        const { rows } = await tx.query(`select create_workspace($1, $2, $3, $4, $5, $6, $7) as id`, [
-          req.userId, b.name, b.business_type, b.logo_url, b.currency, b.phone, b.modules,
+        const { rows } = await tx.query(`select create_workspace($1, $2, $3, $4, $5, $6, $7, $8) as id`, [
+          req.userId, b.name, b.business_type, b.logo_url, b.currency, b.phone, b.modules, b.business_types,
         ]);
         return rows[0].id as string;
       } catch (err) {
@@ -116,7 +124,12 @@ export default [
       if (!isRecord(v)) return null;
       const out: Record<string, unknown> = {};
       if (v.name !== undefined) { const n = str(v.name, 80); if (!n) return null; out.name = n; }
-      if (v.business_type !== undefined) out.business_type = typeOf(v.business_type);
+      if (v.business_types !== undefined || v.business_type !== undefined) {
+        const types = typesOf(v.business_types ?? v.business_type);
+        if (!types.length) return null;
+        out.business_type = types[0];
+        out.business_types = types;
+      }
       if (v.logo_url !== undefined) out.logo_url = validLogoUrl(v.logo_url);
       if (v.currency !== undefined) out.currency = currencyOf(v.currency);
       if (v.phone !== undefined) out.phone = strOrNull(v.phone, 20);

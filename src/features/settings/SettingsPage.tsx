@@ -9,8 +9,8 @@ import { Card, CardBody, Skeleton } from "@/components/ui/card";
 import { Sheet, ConfirmDialog } from "@/components/ui/sheet";
 import { ErrorState } from "@/components/ui/states";
 import { cn } from "@/components/ui/button";
-import { LogOut, ChevronDown, Plus, Trash2, Store, SlidersHorizontal, Tags, FileText, User } from "lucide-react";
-import { BUSINESS_TYPES, CURRENCIES, OPTIONAL_MODULES, CORE_MODULES, MODULE_LABELS, type WorkspaceFull, type AttributeDef } from "@/types";
+import { LogOut, ChevronDown, Plus, Trash2, Store, SlidersHorizontal, Tags, FileText, User, Check } from "lucide-react";
+import { BUSINESS_TYPES, CURRENCIES, OPTIONAL_MODULES, CORE_MODULES, MODULE_LABELS, businessTypesOf, type WorkspaceFull, type AttributeDef } from "@/types";
 
 const SECTIONS = [
   { id: "profile", label: "Business profile", icon: <Store size={16} /> },
@@ -35,7 +35,9 @@ export default function SettingsPage() {
   const [email, setEmail] = useState(workspace?.workspace.email ?? "");
   const [address, setAddress] = useState(workspace?.workspace.address ?? "");
   const [currency, setCurrency] = useState(workspace?.workspace.currency ?? "INR");
-  const [businessType, setBusinessType] = useState(workspace?.workspace.business_type ?? "general");
+  const [businessTypes, setBusinessTypes] = useState<string[]>(
+    workspace ? businessTypesOf(workspace.workspace) : ["general"]
+  );
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [profileErr, setProfileErr] = useState<string | null>(null);
 
@@ -79,7 +81,9 @@ export default function SettingsPage() {
     mutationFn: () =>
       patch(`/workspaces/${wid}`, {
         name, phone: phone || null, email: email || null, address: address || null,
-        currency, business_type: businessType,
+        currency,
+        business_type: businessTypes[0] ?? "general",
+        business_types: businessTypes,
       }),
     onSuccess: async () => {
       await refreshWorkspace();
@@ -157,9 +161,18 @@ export default function SettingsPage() {
   if (!workspace) return <ErrorState />;
 
   const w = workspace.workspace;
+  const savedTypes = businessTypesOf(w);
+  const typesDirty =
+    businessTypes.length !== savedTypes.length || businessTypes.some((t) => !savedTypes.includes(t));
   const profileDirty =
     name !== w.name || phone !== (w.phone ?? "") || email !== (w.email ?? "") ||
-    address !== (w.address ?? "") || currency !== w.currency || businessType !== w.business_type;
+    address !== (w.address ?? "") || currency !== w.currency || typesDirty;
+
+  function toggleBusinessType(value: string) {
+    setBusinessTypes((prev) =>
+      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
+    );
+  }
 
   return (
     <div className="space-y-4 pb-8">
@@ -187,20 +200,35 @@ export default function SettingsPage() {
             <Field label="Business name">
               <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
             </Field>
-            <Field label="Business type">
+            <Field label="Business sections" hint="Choose every section that fits — you can mix bags, eyewear and more">
               <div className="grid grid-cols-2 gap-2">
-                {BUSINESS_TYPES.map((t) => (
-                  <button
-                    key={t.value} type="button" onClick={() => setBusinessType(t.value)}
-                    className={cn(
-                      "rounded-md border p-2.5 text-xs font-medium transition-colors",
-                      businessType === t.value ? "border-accent bg-champagne-light/40 text-accent" : "border-line bg-surface"
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {BUSINESS_TYPES.map((t) => {
+                  const selected = businessTypes.includes(t.value);
+                  return (
+                    <button
+                      key={t.value} type="button" onClick={() => toggleBusinessType(t.value)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-md border p-2.5 text-left text-xs font-medium transition-colors",
+                        selected ? "border-accent bg-champagne-light/40 text-accent" : "border-line bg-surface"
+                      )}
+                    >
+                      <span>{t.label}</span>
+                      <span
+                        className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          selected ? "border-accent bg-accent text-white" : "border-line"
+                        )}
+                      >
+                        {selected && <Check size={10} strokeWidth={3} />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+              {businessTypes.length === 0 && (
+                <p className="mt-1.5 text-2xs text-danger">Pick at least one section.</p>
+              )}
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Currency">
@@ -223,7 +251,7 @@ export default function SettingsPage() {
             </Field>
             {profileErr && <p className="text-sm text-danger">{profileErr}</p>}
             <div className="flex items-center gap-3">
-              <Button loading={saveProfile.isPending} disabled={!profileDirty} onClick={() => { if (name.trim()) saveProfile.mutate(); }}>
+              <Button loading={saveProfile.isPending} disabled={!profileDirty || businessTypes.length === 0} onClick={() => { if (name.trim()) saveProfile.mutate(); }}>
                 Save changes
               </Button>
               {profileMsg && <span className="text-xs text-success">{profileMsg}</span>}

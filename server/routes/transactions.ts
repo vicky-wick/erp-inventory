@@ -45,13 +45,22 @@ export default [
       if (!isRecord(v)) return null;
       const items = parseSaleItems(v.items);
       if (!items) return null;
-      const discount = intOrNull(v.discount) ?? 0;
-      if (discount < 0) return null;
+      // Discount can be typed as a flat amount or as a percentage. `discount`
+      // stays the absolute paise amount (authoritative in the DB); the raw
+      // input is kept as type + value (paise, or basis points for percent).
+      const discountType = v.discount_type === "percent" ? "percent" : "amount";
+      const discountValue =
+        intOrNull(v.discount_value) ?? (discountType === "amount" ? (intOrNull(v.discount) ?? 0) : 0);
+      if (discountValue < 0) return null;
+      if (discountType === "percent" && discountValue > 10000) return null;
+      const discount = discountType === "amount" ? discountValue : 0;
       const method = ["cash","upi","card","other"].includes(String(v.payment_method)) ? String(v.payment_method) : null;
       if (!method) return null;
       return {
         items,
         discount,
+        discount_type: discountType,
+        discount_value: discountValue,
         payment_method: method,
         customer_name: strOrNull(v.customer_name, 80),
         customer_phone: strOrNull(v.customer_phone, 20),
@@ -85,21 +94,27 @@ export default [
       }
 
       try {
-        const { rows } = await tx.query(`select record_sale($1,$2,$3,$4::payment_method,$5,$6,$7,$8,$9,$10) as result`, [
-          req.params.id,
-          JSON.stringify(b.items),
-          b.discount,
-          b.payment_method,
-          b.customer_name, b.customer_phone, b.notes,
-          ws[0].allow_negative_stock,
-          ws[0].invoice_prefix,
-          ws[0].seq,
-        ]);
+        const { rows } = await tx.query(
+          `select record_sale($1,$2,$3,$4::payment_method,$5,$6,$7,$8,$9,$10,$11,$12) as result`,
+          [
+            req.params.id,
+            JSON.stringify(b.items),
+            b.discount,
+            b.payment_method,
+            b.customer_name, b.customer_phone, b.notes,
+            ws[0].allow_negative_stock,
+            ws[0].invoice_prefix,
+            ws[0].seq,
+            b.discount_type,
+            b.discount_value,
+          ]
+        );
         return { sale: rows[0].result };
       } catch (err) {
         const msg = String((err as Error).message);
         if (msg.includes("INSUFFICIENT_STOCK")) throw badRequest("Not enough stock for one of the products. Please check quantities.");
         if (msg.includes("DISCOUNT_EXCEEDS_SUBTOTAL")) throw badRequest("Discount cannot be more than the sale total");
+        if (msg.includes("INVALID_DISCOUNT")) throw badRequest("Discount percentage must be between 0 and 100");
         throw err;
       }
     });

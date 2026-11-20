@@ -1,7 +1,7 @@
 export type AuthUser = { id: string; email: string; name: string; phone?: string | null };
 export type WorkspaceSummary = {
   id: string; name: string; logo_url: string | null; currency: string;
-  business_type: string; role: "owner" | "admin" | "staff";
+  business_type: string; business_types?: string[]; role: "owner" | "admin" | "staff";
 };
 export type ModuleMap = Record<string, boolean>;
 export type WorkspaceSettings = {
@@ -11,7 +11,7 @@ export type WorkspaceSettings = {
 };
 export type WorkspaceFull = {
   workspace: {
-    id: string; name: string; business_type: string; logo_url: string | null;
+    id: string; name: string; business_type: string; business_types?: string[]; logo_url: string | null;
     currency: string; phone: string | null; email: string | null; address: string | null;
     gstin: string | null; invoice_prefix: string; invoice_footer: string | null;
     timezone: string; owner_id: string; role?: string;
@@ -51,7 +51,8 @@ export type Supplier = {
 };
 export type Sale = {
   id: string; sale_no: string; customer_name: string | null; customer_phone: string | null;
-  items_count: number; subtotal: number; discount: number; total: number;
+  items_count: number; subtotal: number; discount: number;
+  discount_type: "amount" | "percent"; discount_value: number; total: number;
   payment_method: "cash" | "upi" | "card" | "other";
   payment_status: string; status: "completed" | "partially_returned" | "returned" | "cancelled";
   notes: string | null; created_at: string;
@@ -103,6 +104,22 @@ export const BUSINESS_TYPES = [
   { value: "general", label: "General retail" }, { value: "other", label: "Other" },
 ];
 export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "LKR", "NPR", "BDT"];
+
+/** Every section a workspace belongs to (falls back to the legacy single type). */
+export function businessTypesOf(w: { business_type: string; business_types?: string[] | null }): string[] {
+  const raw = Array.isArray(w.business_types) && w.business_types.length ? w.business_types : [w.business_type];
+  const out: string[] = [];
+  for (const t of raw) if (t && !out.includes(t)) out.push(t);
+  return out.length ? out : ["general"];
+}
+
+export function businessTypeLabel(value: string): string {
+  return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? value.replace(/_/g, " ");
+}
+
+export function businessTypesLabel(w: { business_type: string; business_types?: string[] | null }): string {
+  return businessTypesOf(w).map(businessTypeLabel).join(" · ");
+}
 export const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
   eyewear: ["Sunglasses", "Frames", "Contact lenses", "Accessories"],
   watches: ["Analog", "Digital", "Smart", "Straps", "Accessories"],

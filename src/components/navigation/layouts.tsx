@@ -6,6 +6,7 @@ import {
   Truck, Tags, BarChart3, SlidersHorizontal, LogOut, Store, Menu, X,
 } from "lucide-react";
 import { useSession } from "@/providers/session";
+import { businessTypesLabel } from "@/types";
 import { cn } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 
@@ -182,7 +183,7 @@ export function AppLayout() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{w.name}</p>
-                <p className="text-2xs capitalize text-muted-foreground">{w.business_type}</p>
+                <p className="truncate text-2xs text-muted-foreground">{businessTypesLabel(w)}</p>
               </div>
             </button>
           ))}

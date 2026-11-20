@@ -77,7 +77,7 @@ export default [
     // workspaces this user belongs to
     const ws = await scopedQuery(
       { userId: req.userId },
-      `select w.id, w.name, w.logo_url, w.currency, w.business_type, m.role
+      `select w.id, w.name, w.logo_url, w.currency, w.business_type, w.business_types, m.role
          from workspaces w
          join workspace_members m on m.workspace_id = w.id and m.user_id = $1
         order by w.created_at`,
@@ -164,7 +164,7 @@ export default [
               coalesce(jsonb_agg(to_jsonb(x) order by x.created_at) filter (where x.id is not null), '[]'::jsonb) as workspaces
          from profiles p
          left join lateral (
-           select w.id, w.name, w.logo_url, w.currency, w.business_type, m.role, w.created_at
+           select w.id, w.name, w.logo_url, w.currency, w.business_type, w.business_types, m.role, w.created_at
              from workspace_members m
              join workspaces w on w.id = m.workspace_id
             where m.user_id = p.id

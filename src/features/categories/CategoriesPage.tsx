@@ -8,13 +8,13 @@ import { Skeleton } from "@/components/ui/card";
 import { Sheet, ConfirmDialog } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { Plus, Tags, Pencil, Trash2 } from "lucide-react";
-import type { Category } from "@/types";
+import { CATEGORY_SUGGESTIONS, businessTypesOf, type Category } from "@/types";
 
 export default function CategoriesPage() {
   const { workspace } = useSession();
   const qc = useQueryClient();
   const wid = workspace?.workspace.id;
-  const businessType = workspace?.workspace.business_type ?? "general";
+  const businessTypes = workspace ? businessTypesOf(workspace.workspace) : ["general"];
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -44,16 +44,12 @@ export default function CategoriesPage() {
     onError: (e) => setError(e instanceof Error ? e.message : "Delete failed"),
   });
 
-  const suggestions: Record<string, string[]> = {
-    eyewear: ["Sunglasses", "Frames", "Contact lenses", "Accessories"],
-    watches: ["Analog", "Digital", "Smart", "Straps"],
-    bags: ["Handbags", "Backpacks", "Wallets", "Luggage"],
-    fashion: ["Men", "Women", "Kids", "Footwear"],
-    jewellery: ["Rings", "Necklaces", "Earrings", "Bracelets"],
-    electronics: ["Phones", "Audio", "Chargers", "Accessories"],
-  };
   const existing = new Set((data?.categories ?? []).map((c) => c.name.toLowerCase()));
-  const ideas = (suggestions[businessType] ?? []).filter((s) => !existing.has(s.toLowerCase()));
+  // Merge suggestions from every section the shop belongs to, in the order the
+  // sections were chosen, so a bags + eyewear shop sees both sets.
+  const ideas = Array.from(
+    new Set(businessTypes.flatMap((t) => CATEGORY_SUGGESTIONS[t] ?? []))
+  ).filter((s) => !existing.has(s.toLowerCase()));
 
   return (
     <div className="space-y-4">
@@ -108,7 +104,7 @@ export default function CategoriesPage() {
       {ideas.length > 0 && (
         <div className="rounded-lg border border-line bg-surface p-4 shadow-xs">
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Suggested for {businessType} shops:
+            Suggested for your shop:
           </p>
           <div className="flex flex-wrap gap-2">
             {ideas.map((s) => (

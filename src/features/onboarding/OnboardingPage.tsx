@@ -6,6 +6,7 @@ import { useSession } from "@/providers/session";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Field, FieldError } from "@/components/ui/input";
 import { cn } from "@/components/ui/button";
+import { Check } from "lucide-react";
 import { BUSINESS_TYPES, CURRENCIES, OPTIONAL_MODULES, MODULE_LABELS, type WorkspaceFull } from "@/types";
 
 const STEPS = ["Welcome", "Business name", "Type", "Currency", "Modules", "Done"];
@@ -13,7 +14,7 @@ const STEPS = ["Welcome", "Business name", "Type", "Currency", "Modules", "Done"
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
-  const [businessType, setBusinessType] = useState("general");
+  const [businessTypes, setBusinessTypes] = useState<string[]>(["general"]);
   const [currency, setCurrency] = useState("INR");
   const [phone, setPhone] = useState("");
   const [modules, setModules] = useState<Record<string, boolean>>({
@@ -24,6 +25,12 @@ export default function OnboardingPage() {
   const { refreshWorkspace, refreshMe, setActiveId } = useSession();
   const navigate = useNavigate();
 
+  function toggleBusinessType(value: string) {
+    setBusinessTypes((prev) =>
+      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
+    );
+  }
+
   async function finish() {
     setError(null);
     if (!name.trim()) {
@@ -31,11 +38,19 @@ export default function OnboardingPage() {
       setError("Your business name is required");
       return;
     }
+    if (businessTypes.length === 0) {
+      setStep(2);
+      setError("Pick at least one section");
+      return;
+    }
     setLoading(true);
     try {
       const enabled = Object.entries(modules).filter(([, v]) => v).map(([k]) => k);
       const data = await post<{ workspace: { id: string } }>("/workspaces", {
-        name, business_type: businessType, currency, phone, modules: enabled,
+        name,
+        business_type: businessTypes[0] ?? "general",
+        business_types: businessTypes,
+        currency, phone, modules: enabled,
       });
       localStorage.setItem("evolv.workspace", data.workspace.id);
       setActiveId(data.workspace.id);
@@ -48,7 +63,9 @@ export default function OnboardingPage() {
     }
   }
 
-  const canNext = step !== 1 || name.trim().length > 0;
+  const canNext =
+    (step !== 1 || name.trim().length > 0) &&
+    (step !== 2 || businessTypes.length > 0);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -96,22 +113,37 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div>
                 <h1 className="font-display text-xl font-bold">What do you sell?</h1>
-                <p className="mb-5 mt-1 text-sm text-muted-foreground">This helps us suggest categories. You can change it later.</p>
+                <p className="mb-5 mt-1 text-sm text-muted-foreground">
+                  Pick every section that fits — you can sell bags and glasses together. This helps us suggest categories, and you can change it later.
+                </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {BUSINESS_TYPES.map((t) => (
-                    <button
-                      key={t.value}
-                      onClick={() => setBusinessType(t.value)}
-                      className={cn(
-                        "rounded-md border p-3.5 text-left text-sm font-medium transition-colors",
-                        businessType === t.value
-                          ? "border-accent bg-champagne-light/40 text-foreground"
-                          : "border-line bg-surface text-muted-foreground hover:bg-background-2"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+                  {BUSINESS_TYPES.map((t) => {
+                    const selected = businessTypes.includes(t.value);
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => toggleBusinessType(t.value)}
+                        aria-pressed={selected}
+                        className={cn(
+                          "flex items-center justify-between gap-2 rounded-md border p-3.5 text-left text-sm font-medium transition-colors",
+                          selected
+                            ? "border-accent bg-champagne-light/40 text-foreground"
+                            : "border-line bg-surface text-muted-foreground hover:bg-background-2"
+                        )}
+                      >
+                        <span>{t.label}</span>
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                            selected ? "border-accent bg-accent text-white" : "border-line"
+                          )}
+                        >
+                          {selected && <Check size={10} strokeWidth={3} />}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-5">
                   <Field label="Phone" optional>

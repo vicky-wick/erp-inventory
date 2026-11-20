@@ -4,17 +4,27 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useSession } from "@/providers/session";
 import { formatMoney, formatDateTime } from "@/lib/format";
-import { Card, CardBody, Badge, Skeleton } from "@/components/ui/card";
+import { Badge, Skeleton } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, ConfirmDialog } from "@/components/ui/sheet";
 import { ErrorState } from "@/components/ui/states";
 import { ArrowLeft, Printer, Undo2, Minus, Plus } from "lucide-react";
+import { businessTypesLabel } from "@/types";
 import type { Sale, SaleItem } from "@/types";
 
 const PAYMENT_LABELS: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", other: "Other" };
 const STATUS_TONES: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   completed: "success", partially_returned: "warning", returned: "neutral", cancelled: "danger",
 };
+
+function discountLabel(sale: Sale): string {
+  const value = Number(sale.discount_value ?? 0);
+  if (sale.discount_type === "percent" && value > 0) {
+    const pct = (value / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return `Discount (${pct}%)`;
+  }
+  return "Discount";
+}
 
 export default function SaleDetailPage() {
   const { id } = useParams();
@@ -37,6 +47,7 @@ export default function SaleDetailPage() {
   });
 
   const wsName = workspace?.workspace.name ?? "";
+  const ws = workspace?.workspace;
 
   const doReturn = useMutation({
     mutationFn: () =>
@@ -86,72 +97,113 @@ export default function SaleDetailPage() {
         </div>
       </div>
 
-      {/* Invoice */}
-      <Card>
-        <CardBody className="pt-4">
-          <div className="flex items-start justify-between border-b border-line pb-3">
-            <div>
-              <p className="font-display text-lg font-bold">{wsName}</p>
-              <p className="tabular text-2xs text-muted-foreground">{sale.sale_no}</p>
-            </div>
-            <div className="text-right">
-              <Badge tone={STATUS_TONES[sale.status]}>{sale.status.replace(/_/g, " ")}</Badge>
-              <p className="mt-1 text-2xs text-muted-foreground">{formatDateTime(sale.created_at)}</p>
-            </div>
-          </div>
-
-          {sale.customer_name && (
-            <p className="mt-3 text-sm">
-              <span className="text-muted-foreground">Customer:</span> <span className="font-medium">{sale.customer_name}</span>
-              {sale.customer_phone && <span className="text-muted-foreground"> · {sale.customer_phone}</span>}
-            </p>
-          )}
-
-          <ul className="mt-2 divide-y divide-line">
-            {items.map((it) => {
-              const remaining = it.quantity - it.returned_qty;
-              return (
-                <li key={it.id} className="flex items-center justify-between py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {it.product_name}{it.variant_name ? ` (${it.variant_name})` : ""}
-                    </p>
-                    <p className="tabular text-2xs text-muted-foreground">
-                      {it.quantity} × {formatMoney(it.unit_price, currency)}
-                      {it.returned_qty > 0 ? ` · ${it.returned_qty} returned` : ""}
-                    </p>
-                  </div>
-                  <p className="tabular text-sm font-semibold">{formatMoney(it.line_total, currency)}</p>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-3 space-y-1.5 border-t border-line pt-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="tabular">{formatMoney(sale.subtotal, currency)}</span>
-            </div>
-            {sale.discount > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Discount</span>
-                <span className="tabular text-danger">−{formatMoney(sale.discount, currency)}</span>
+      {/* Invoice — restrained gallery layout: hairlines, generous air, one gold signature */}
+      <div className="invoice-sheet overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="h-0.5 w-full bg-accent" />
+        <div className="p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-charcoal">
+                  <span className="font-display text-lg font-semibold text-gold">{wsName.slice(0, 1) || "E"}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-[19px] font-semibold leading-tight tracking-[-0.01em]">{wsName}</p>
+                  <p className="eyebrow mt-0.5 text-[10px] text-muted-foreground">{ws ? businessTypesLabel(ws) : "Retail"}</p>
+                </div>
               </div>
-            )}
-            <div className="flex justify-between text-base font-bold">
-              <span>Total</span>
-              <span className="tabular">{formatMoney(sale.total, currency)}</span>
+              {(ws?.address || ws?.phone || ws?.gstin) && (
+                <div className="mt-4 space-y-0.5 text-[11px] leading-[1.7] text-muted-foreground">
+                  {ws?.address && <p className="whitespace-pre-line">{ws.address}</p>}
+                  {ws?.phone && <p className="tabular">{ws.phone}</p>}
+                  {ws?.gstin && <p className="tabular">GSTIN {ws.gstin}</p>}
+                </div>
+              )}
             </div>
-            <p className="pt-1 text-2xs text-muted-foreground">Paid via {PAYMENT_LABELS[sale.payment_method]}</p>
+            <div className="shrink-0 text-right">
+              <p className="eyebrow text-[10px] text-accent">Invoice</p>
+              <p className="tabular mt-1.5 text-sm font-semibold">{sale.sale_no}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{formatDateTime(sale.created_at)}</p>
+              <div className="mt-2.5 flex justify-end">
+                <Badge tone={STATUS_TONES[sale.status]}>{sale.status.replace(/_/g, " ")}</Badge>
+              </div>
+            </div>
           </div>
 
-          {workspace?.workspace.invoice_footer && (
-            <p className="mt-4 border-t border-line pt-3 text-center text-2xs text-muted-foreground">
-              {workspace.workspace.invoice_footer}
-            </p>
+          {(sale.customer_name || sale.customer_phone) && (
+            <div className="mt-7 border-y border-line py-3">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Billed to</p>
+              <p className="mt-1 text-[13px] font-semibold">{sale.customer_name || "Walk-in customer"}</p>
+              {sale.customer_phone && <p className="tabular mt-0.5 text-[11px] text-muted-foreground">{sale.customer_phone}</p>}
+            </div>
           )}
-        </CardBody>
-      </Card>
+
+          <table className="mt-7 w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+                <th className="pb-2.5 pr-2 font-semibold">Item</th>
+                <th className="px-2 pb-2.5 text-center font-semibold">Qty</th>
+                <th className="hidden px-2 pb-2.5 text-right font-semibold sm:table-cell">Rate</th>
+                <th className="pb-2.5 pl-2 text-right font-semibold">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.id} className="border-b border-line/70 align-top last:border-0">
+                  <td className="py-3.5 pr-2">
+                    <p className="font-medium leading-snug">
+                      {it.product_name}{it.variant_name ? ` — ${it.variant_name}` : ""}
+                    </p>
+                    <p className="tabular mt-1 text-[10px] tracking-[0.02em] text-muted-foreground">
+                      {it.sku}{it.returned_qty > 0 ? ` · ${it.returned_qty} returned` : ""}
+                    </p>
+                  </td>
+                  <td className="tabular px-2 py-3.5 text-center text-[13px]">{it.quantity}</td>
+                  <td className="tabular hidden px-2 py-3.5 text-right text-[13px] text-muted-foreground sm:table-cell">
+                    {formatMoney(it.unit_price, currency)}
+                  </td>
+                  <td className="tabular py-3.5 pl-2 text-right text-[13px] font-semibold">
+                    {formatMoney(it.line_total, currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+              <p className="flex items-center gap-2">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em]">Paid via</span>
+                <span className="font-semibold text-foreground">{PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method}</span>
+              </p>
+              {sale.notes && <p className="max-w-xs whitespace-pre-line">{sale.notes}</p>}
+            </div>
+            <div className="w-full space-y-2 text-[13px] sm:w-60">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular">{formatMoney(sale.subtotal, currency)}</span>
+              </div>
+              {(Number(sale.discount) > 0 || Number(sale.discount_value) > 0) && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{discountLabel(sale)}</span>
+                  <span className="tabular whitespace-nowrap text-accent">−{formatMoney(sale.discount, currency)}</span>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between border-t border-line pt-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Total</span>
+                <span className="tabular font-display text-2xl font-semibold tracking-[-0.01em]">
+                  {formatMoney(sale.total, currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t border-line pt-4 text-center">
+            <p className="text-[11px] text-muted-foreground">{ws?.invoice_footer || "Thank you for your business."}</p>
+            <p className="mt-1.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60">Powered by EVOLV</p>
+          </div>
+        </div>
+      </div>
 
       {/* Return sheet */}
       <Sheet open={returnOpen} onClose={() => setReturnOpen(false)} title="Return items">

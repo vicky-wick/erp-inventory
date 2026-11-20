@@ -137,7 +137,19 @@ export default [
       if (v.address !== undefined) out.address = strOrNull(v.address, 500);
       if (v.gstin !== undefined) out.gstin = strOrNull(v.gstin, 20);
       if (v.invoice_prefix !== undefined) out.invoice_prefix = strOrNull(v.invoice_prefix, 10) ?? "INV";
+      if (v.invoice_title !== undefined) out.invoice_title = strOrNull(v.invoice_title, 60);
       if (v.invoice_footer !== undefined) out.invoice_footer = strOrNull(v.invoice_footer, 300);
+      if (v.invoice_terms !== undefined) out.invoice_terms = strOrNull(v.invoice_terms, 500);
+      for (const key of [
+        "invoice_show_logo", "invoice_show_address", "invoice_show_phone",
+        "invoice_show_gstin", "invoice_show_sku",
+      ] as const) {
+        if (v[key] !== undefined) {
+          const x = bool(v[key]);
+          if (x === null) return null;
+          out[key] = x;
+        }
+      }
       return Object.keys(out).length ? out : null;
     }, "Nothing to update");
 

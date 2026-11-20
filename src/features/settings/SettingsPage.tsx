@@ -1,4 +1,4 @@
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch, post } from "@/lib/api";
@@ -9,7 +9,8 @@ import { Card, CardBody, Skeleton } from "@/components/ui/card";
 import { Sheet, ConfirmDialog } from "@/components/ui/sheet";
 import { ErrorState } from "@/components/ui/states";
 import { cn } from "@/components/ui/button";
-import { LogOut, ChevronDown, Plus, Trash2, Store, SlidersHorizontal, Tags, FileText, User, Check } from "lucide-react";
+import { LogOut, ChevronDown, Plus, Trash2, Store, SlidersHorizontal, Tags, FileText, User, Check, Upload } from "lucide-react";
+import { WorkspaceLogo } from "@/components/ui/workspace-logo";
 import { BUSINESS_TYPES, CURRENCIES, OPTIONAL_MODULES, CORE_MODULES, MODULE_LABELS, businessTypesOf, type WorkspaceFull, type AttributeDef } from "@/types";
 
 const SECTIONS = [
@@ -41,11 +42,31 @@ export default function SettingsPage() {
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [profileErr, setProfileErr] = useState<string | null>(null);
 
+  // logo upload
+  const [logoUrl, setLogoUrl] = useState<string | null>(workspace?.workspace.logo_url ?? null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoMsg, setLogoMsg] = useState<string | null>(null);
+  const [logoErr, setLogoErr] = useState<string | null>(null);
+  const logoInput = useRef<HTMLInputElement>(null);
+
+  // Keep the preview in step when the active workspace changes.
+  useEffect(() => {
+    setLogoUrl(workspace?.workspace.logo_url ?? null);
+  }, [workspace?.workspace.id, workspace?.workspace.logo_url]);
+
   // invoice state
   const [invoicePrefix, setInvoicePrefix] = useState(workspace?.workspace.invoice_prefix ?? "INV");
+  const [invoiceTitle, setInvoiceTitle] = useState(workspace?.workspace.invoice_title ?? "");
   const [gstin, setGstin] = useState(workspace?.workspace.gstin ?? "");
   const [invoiceFooter, setInvoiceFooter] = useState(workspace?.workspace.invoice_footer ?? "");
+  const [invoiceTerms, setInvoiceTerms] = useState(workspace?.workspace.invoice_terms ?? "");
+  const [showLogo, setShowLogo] = useState(workspace?.workspace.invoice_show_logo ?? true);
+  const [showAddress, setShowAddress] = useState(workspace?.workspace.invoice_show_address ?? true);
+  const [showPhone, setShowPhone] = useState(workspace?.workspace.invoice_show_phone ?? true);
+  const [showGstin, setShowGstin] = useState(workspace?.workspace.invoice_show_gstin ?? true);
+  const [showSku, setShowSku] = useState(workspace?.workspace.invoice_show_sku ?? true);
   const [invoiceMsg, setInvoiceMsg] = useState<string | null>(null);
+  const [invoiceErr, setInvoiceErr] = useState<string | null>(null);
 
   // inventory settings
   const [threshold, setThreshold] = useState(String(workspace?.settings.low_stock_threshold ?? 5));
@@ -97,15 +118,76 @@ export default function SettingsPage() {
     mutationFn: () =>
       patch(`/workspaces/${wid}`, {
         invoice_prefix: invoicePrefix || "INV",
-        gstin: gstin || null,
-        invoice_footer: invoiceFooter || null,
+        invoice_title: invoiceTitle.trim() || null,
+        gstin: gstin.trim() || null,
+        invoice_footer: invoiceFooter.trim() || null,
+        invoice_terms: invoiceTerms.trim() || null,
+        invoice_show_logo: showLogo,
+        invoice_show_address: showAddress,
+        invoice_show_phone: showPhone,
+        invoice_show_gstin: showGstin,
+        invoice_show_sku: showSku,
       }),
     onSuccess: async () => {
       await refreshWorkspace();
-      setInvoiceMsg("Saved");
+      setInvoiceMsg("Saved"); setInvoiceErr(null);
       setTimeout(() => setInvoiceMsg(null), 2000);
     },
+    onError: (e) => setInvoiceErr(e instanceof Error ? e.message : "Save failed"),
   });
+
+  const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+  async function uploadLogo(file: File) {
+    if (!wid) return;
+    setLogoErr(null); setLogoMsg(null);
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+      setLogoErr("Choose a PNG, JPG, WebP or GIF image");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoErr("Logo must be smaller than 2 MB");
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read that image"));
+        reader.readAsDataURL(file);
+      });
+      const uploaded = await post<{ file_url: string }>(`/workspaces/${wid}/files`, {
+        filename: file.name, mime_type: file.type, data,
+      });
+      await patch(`/workspaces/${wid}`, { logo_url: uploaded.file_url });
+      setLogoUrl(uploaded.file_url);
+      await refreshWorkspace();
+      setLogoMsg("Logo updated");
+      setTimeout(() => setLogoMsg(null), 2000);
+    } catch (e) {
+      setLogoErr(e instanceof Error ? e.message : "Logo upload failed");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!wid) return;
+    setLogoErr(null); setLogoMsg(null);
+    setLogoBusy(true);
+    try {
+      await patch(`/workspaces/${wid}`, { logo_url: null });
+      setLogoUrl(null);
+      await refreshWorkspace();
+      setLogoMsg("Logo removed");
+      setTimeout(() => setLogoMsg(null), 2000);
+    } catch (e) {
+      setLogoErr(e instanceof Error ? e.message : "Could not remove logo");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   const saveInventorySettings = useMutation({
     mutationFn: () =>
@@ -197,6 +279,43 @@ export default function SettingsPage() {
       {section === "profile" && (
         <Card>
           <CardBody className="space-y-4 pt-4">
+            <div className="flex items-center gap-4">
+              <WorkspaceLogo name={name || "EVOLV"} logoUrl={logoUrl} size={64} className="rounded-xl shadow-sm" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Business logo</p>
+                <p className="text-2xs leading-relaxed text-muted-foreground">
+                  Used in the app header, workspace switcher and your invoices.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input
+                    ref={logoInput}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void uploadLogo(file);
+                    }}
+                  />
+                  <Button
+                    type="button" size="sm" variant="secondary" loading={logoBusy}
+                    onClick={() => logoInput.current?.click()}
+                  >
+                    <Upload size={14} /> {logoUrl ? "Replace" : "Upload logo"}
+                  </Button>
+                  {logoUrl && (
+                    <Button type="button" size="sm" variant="ghost" disabled={logoBusy} onClick={() => void removeLogo()}>
+                      <Trash2 size={14} /> Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-1.5 text-2xs text-muted-foreground">PNG, JPG, WebP or GIF · up to 2 MB</p>
+                {logoMsg && <p className="mt-1 text-xs text-success">{logoMsg}</p>}
+                {logoErr && <p className="mt-1 text-xs text-danger">{logoErr}</p>}
+              </div>
+            </div>
+            <div className="border-t border-line" />
             <Field label="Business name">
               <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
             </Field>
@@ -383,19 +502,73 @@ export default function SettingsPage() {
       {section === "invoice" && (
         <Card>
           <CardBody className="space-y-4 pt-4">
+            <div className="flex items-center gap-3 rounded-md border border-line bg-background-2/50 p-3">
+              <WorkspaceLogo name={name || "EVOLV"} logoUrl={showLogo ? logoUrl : null} size={40} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{invoiceTitle.trim() || "Invoice"}</p>
+                <p className="text-2xs text-muted-foreground">Live preview of the invoice header</p>
+              </div>
+            </div>
+
+            <Field label="Invoice title" hint="e.g. Tax Invoice, Bill of Supply — leave blank for “Invoice”">
+              <Input value={invoiceTitle} onChange={(e) => setInvoiceTitle(e.target.value)} maxLength={60} placeholder="Invoice" />
+            </Field>
+
             <div className="grid grid-cols-2 gap-3">
               <Field label="Invoice prefix" hint="e.g. INV gives INV-00001">
                 <Input value={invoicePrefix} onChange={(e) => setInvoicePrefix(e.target.value.toUpperCase())} maxLength={10} className="tabular" />
               </Field>
               <Field label="GSTIN" optional>
-                <Input value={gstin} onChange={(e) => setGstin(e.target.value)} />
+                <Input value={gstin} onChange={(e) => setGstin(e.target.value)} maxLength={20} />
               </Field>
             </div>
-            <Field label="Invoice footer" optional>
-              <Textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} placeholder="e.g. Thank you for your business!" />
+
+            <Field label="Terms & notes" optional hint="Exchange policy, payment terms or a short note — shown above the footer">
+              <Textarea value={invoiceTerms} onChange={(e) => setInvoiceTerms(e.target.value)} maxLength={500} placeholder="e.g. Exchange within 7 days with the original bill." />
             </Field>
-            {invoiceMsg && <span className="text-xs text-success">{invoiceMsg}</span>}
-            <Button loading={saveInvoice.isPending} onClick={() => saveInvoice.mutate()}>Save</Button>
+
+            <Field label="Footer message" optional>
+              <Textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} maxLength={300} placeholder="e.g. Thank you for your business!" />
+            </Field>
+
+            <div>
+              <p className="mb-2 text-sm font-medium">Show on invoice</p>
+              <div className="space-y-2">
+                {[
+                  { label: "Business logo", checked: showLogo && !!logoUrl, onChange: setShowLogo, disabled: !logoUrl },
+                  { label: "Business address", checked: showAddress, onChange: setShowAddress },
+                  { label: "Phone number", checked: showPhone, onChange: setShowPhone },
+                  { label: "GSTIN", checked: showGstin, onChange: setShowGstin },
+                  { label: "Product SKU", checked: showSku, onChange: setShowSku },
+                ].map((opt) => (
+                  <label
+                    key={opt.label}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border border-line p-3 text-sm",
+                      opt.disabled && "opacity-50"
+                    )}
+                  >
+                    <span>
+                      {opt.label}
+                      {opt.disabled && <span className="ml-1.5 text-2xs text-muted-foreground">Upload a logo first</span>}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={opt.checked}
+                      disabled={opt.disabled}
+                      onChange={(e) => opt.onChange(e.target.checked)}
+                      className="h-5 w-5 accent-[#a37e35]"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {invoiceErr && <p className="text-xs text-danger">{invoiceErr}</p>}
+            <div className="flex items-center gap-3">
+              <Button loading={saveInvoice.isPending} onClick={() => saveInvoice.mutate()}>Save</Button>
+              {invoiceMsg && <span className="text-xs text-success">{invoiceMsg}</span>}
+            </div>
           </CardBody>
         </Card>
       )}

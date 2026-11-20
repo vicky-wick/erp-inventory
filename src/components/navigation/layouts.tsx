@@ -9,17 +9,7 @@ import { useSession } from "@/providers/session";
 import { businessTypesLabel } from "@/types";
 import { cn } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-
-const ELogo = ({ size = 28 }: { size?: number }) => (
-  <div
-    className="flex items-center justify-center rounded-lg bg-charcoal shadow-sm"
-    style={{ height: size, width: size }}
-  >
-    <span className="font-display font-semibold text-gold" style={{ fontSize: size * 0.5 }}>
-      E
-    </span>
-  </div>
-);
+import { WorkspaceLogo } from "@/components/ui/workspace-logo";
 
 type NavItem = { to: string; label: string; icon: React.ReactNode; module: string; primary?: boolean };
 
@@ -86,7 +76,12 @@ export function AppLayout() {
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface px-3 py-4 md:flex">
         <div className="mb-6 flex items-center gap-2.5 px-2">
-          <ELogo />
+          <WorkspaceLogo
+            name={workspace?.workspace.name ?? "EVOLV"}
+            logoUrl={workspace?.workspace.logo_url}
+            size={32}
+            className="shadow-sm"
+          />
           <div className="min-w-0 flex-1">
             <button
               onClick={() => setWsOpen(true)}
@@ -115,7 +110,12 @@ export function AppLayout() {
       {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line bg-background/95 px-4 py-3 backdrop-blur md:hidden pt-safe">
         <button onClick={() => setWsOpen(true)} className="flex min-w-0 items-center gap-2.5 text-left">
-          <ELogo size={32} />
+          <WorkspaceLogo
+            name={workspace?.workspace.name ?? "EVOLV"}
+            logoUrl={workspace?.workspace.logo_url}
+            size={32}
+            className="shadow-sm"
+          />
           <div className="min-w-0">
             <p className="truncate font-display text-sm font-bold">{workspace?.workspace.name ?? "EVOLV"}</p>
             <p className="text-2xs text-muted-foreground">Powered by EVOLV</p>
@@ -178,9 +178,12 @@ export function AppLayout() {
                 w.id === activeId ? "border-accent bg-champagne-light/40" : "border-line hover:bg-background-2"
               )}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-background-2 font-display font-bold">
-                {w.name.slice(0, 1)}
-              </div>
+              <WorkspaceLogo
+                name={w.name}
+                logoUrl={w.id === activeId ? (workspace?.workspace.logo_url ?? w.logo_url) : w.logo_url}
+                size={40}
+                className="shadow-sm"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{w.name}</p>
                 <p className="truncate text-2xs text-muted-foreground">{businessTypesLabel(w)}</p>

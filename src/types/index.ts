@@ -13,7 +13,10 @@ export type WorkspaceFull = {
   workspace: {
     id: string; name: string; business_type: string; business_types?: string[]; logo_url: string | null;
     currency: string; phone: string | null; email: string | null; address: string | null;
-    gstin: string | null; invoice_prefix: string; invoice_footer: string | null;
+    gstin: string | null; invoice_prefix: string; invoice_title: string | null;
+    invoice_footer: string | null; invoice_terms: string | null;
+    invoice_show_logo: boolean; invoice_show_address: boolean; invoice_show_phone: boolean;
+    invoice_show_gstin: boolean; invoice_show_sku: boolean;
     timezone: string; owner_id: string; role?: string;
   };
   modules: { module_key: string; enabled: boolean }[];
